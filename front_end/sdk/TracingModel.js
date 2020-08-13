@@ -376,6 +376,22 @@ export class TracingModel {
     return thread.removeEventsByName(eventName);
   }
 
+  /**
+   * @param {string} processName
+   * @param {string} threadName
+   * @param {string} eventCategory
+   * @return {!Array<!Event>}
+   */
+  extractEventsFromThreadByCategory(processName, threadName, eventCategory) {
+    //TODO(mmocny): this is new, very similar to above byName
+    const thread = this.threadByName(processName, threadName);
+    if (!thread) {
+      return [];
+    }
+
+    return thread.removeEventsByCategory(eventCategory);
+  }
+
   _processPendingAsyncEvents() {
     this._asyncEvents.sort(Event.compareStartTime);
     for (let i = 0; i < this._asyncEvents.length; ++i) {
@@ -1136,6 +1152,31 @@ export class Thread extends NamedObject {
       }
 
       if (e.name !== name) {
+        return true;
+      }
+
+      extracted.push(e);
+      return false;
+    });
+
+    return extracted;
+  }
+
+  /**
+   * @param {string} category
+   */
+  removeEventsByCategory(category) {
+    console.log('TracingModel.removeEventsByCategory', this._events);
+    /**
+     * @type {!Array<!Event>}
+     */
+    const extracted = [];
+    this._events = this._events.filter(e => {
+      if (!e) {
+        return false;
+      }
+
+      if (e.categoriesString !== category) {
         return true;
       }
 

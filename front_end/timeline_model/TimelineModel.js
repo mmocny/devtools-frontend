@@ -142,6 +142,13 @@ export class TimelineModelImpl {
    * @param {!SDK.TracingModel.Event} event
    * @return {boolean}
    */
+  isUserTimingEvent(event) {
+    return event.categoriesString === TimelineModelImpl.Category.UserTiming;
+  }
+  /**
+   * @param {!SDK.TracingModel.Event} event
+   * @return {boolean}
+   */
   isParseHTMLEvent(event) {
     return event.name === RecordType.ParseHTML;
   }
@@ -241,6 +248,12 @@ export class TimelineModelImpl {
     const layoutShiftEvents =
         tracingModel.extractEventsFromThreadByName('Renderer', 'CrRendererMain', RecordType.LayoutShift);
 
+    // Remove PerfMark events from the main thread list of events because they are
+    // represented in the Timings track. This is done prior to the main thread being processed for its own events.
+    // TODO(mmocny): this is new. extracting sync and async events.  How to ignore async?
+    const perfMarkEvents =
+        tracingModel.extractEventsFromThreadByCategory('Renderer', 'CrRendererMain', TimelineModelImpl.Category.UserTiming);
+
     this._processSyncBrowserEvents(tracingModel);
     if (this._browserFrameTracking) {
       this._processThreadsForBrowserFrames(tracingModel);
@@ -259,6 +272,8 @@ export class TimelineModelImpl {
     this._processAsyncBrowserEvents(tracingModel);
     this._buildGPUEvents(tracingModel);
     this._buildLoadingEvents(tracingModel, layoutShiftEvents);
+    // TODO(mmocny): this is new
+    this._buildTimingEvents(tracingModel, perfMarkEvents);
     this._resetProcessingState();
   }
 
@@ -525,6 +540,35 @@ export class TimelineModelImpl {
         timelineData.backendNodeId = eventData['impacted_nodes'][0]['node_id'];
       }
     }
+  }
+
+  /**
+   * @param {!SDK.TracingModel.TracingModel} tracingModel
+   * @param {!Array<!SDK.TracingModel.Event>} events
+   */
+  _buildTimingEvents(tracingModel, events) {
+    console.log('TimelineModel._buildTimingEvents', tracingModel, events);
+    const thread = tracingModel.threadByName('Renderer', 'CrRendererMain');
+    if (!thread) {
+      return;
+    }
+    const track = this._ensureNamedTrack(TrackType.Timings);
+    track.thread = thread;
+    track.events = events;
+
+    /*
+    const category = 'timings';
+    // Even though the event comes from 'loading', in order to color it differently we
+    // rename its category.
+    for (const trackEvent of track.events) {
+      trackEvent.categoriesString = category;
+      if (trackEvent.name === RecordType.UserTiming) {
+        const eventData = trackEvent.args['data'] || trackEvent.args['beginData'] || {};
+        //const timelineData = TimelineData.forEvent(trackEvent);
+        //timelineData.backendNodeId = eventData['impacted_nodes'][0]['node_id'];
+      }
+    }
+    */
   }
 
   _resetProcessingState() {

@@ -328,11 +328,16 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         }
 
         case TimelineModel.TimelineModel.TrackType.Timings: {
+          // TODO(mmocny): Problem 1: Why aren't performance.marks in this `track`?
           const style = track.asyncEvents.length > 0 ? this._collapsibleTimingsHeader : this._timingsHeader;
           const group = this._appendHeader(ls`Timings`, style, true /* selectable */);
           group._track = track;
           this._appendPageMetrics();
+
+          
           this._appendAsyncEventsGroup(track, null, track.asyncEvents, style, eventEntryType, true /* selectable */);
+          // TODO(mmocny): This is new
+          this._appendSyncEvents(track, track.events, null, style, eventEntryType, true /* selectable */);
           break;
         }
 
@@ -491,6 +496,56 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         if (track && track.type === TimelineModel.TimelineModel.TrackType.MainThread && skippableEvent) {
           continue;
         }
+      }
+
+      // TODO(mmocny): This is new.
+      if (this._performanceModel && this._performanceModel.timelineModel().isUserTimingEvent(e)) {
+        // TODO(mmocny): This filtration should happen beforehand, at the moment it gets extracted?
+        let ResourceTimingNames = [
+          'workerStart',
+          'redirectStart',
+          'redirectEnd',
+          'fetchStart',
+          'domainLookupStart',
+          'domainLookupEnd',
+          'connectStart',
+          'connectEnd',
+          'secureConnectionStart',
+          'requestStart',
+          'responseStart',
+          'responseEnd',
+        ];
+        let NavTimingNames = [
+          'navigationStart',
+          'unloadEventStart',
+          'unloadEventEnd',
+          'redirectStart',
+          'redirectEnd',
+          'fetchStart',
+          'domainLookupStart',
+          'domainLookupEnd',
+          'connectStart',
+          'connectEnd',
+          'secureConnectionStart',
+          'requestStart',
+          'responseStart',
+          'responseEnd',
+          'domLoading',
+          'domInteractive',
+          'domContentLoadedEventStart',
+          'domContentLoadedEventEnd',
+          'domComplete',
+          'loadEventStart',
+          'loadEventEnd',
+        ];
+        let IgnoreNames = [...ResourceTimingNames, ...NavTimingNames];
+        if (IgnoreNames.includes(e.name)) {
+          continue;
+        }
+        console.log('YAY',  title, e, track, events, 'entryType', entryType);
+
+        //TODO(mmocny): Add endTime to marks!
+
       }
 
       if (this._performanceModel && this._performanceModel.timelineModel().isLayoutShiftEvent(e)) {
