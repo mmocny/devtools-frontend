@@ -1166,7 +1166,7 @@ export class Thread extends NamedObject {
    * @param {string} category
    */
   removeEventsByCategory(category) {
-    console.log('TracingModel.removeEventsByCategory', this._events);
+    // TODO(mmocny): This is new, very similar to abobe byName
     /**
      * @type {!Array<!Event>}
      */

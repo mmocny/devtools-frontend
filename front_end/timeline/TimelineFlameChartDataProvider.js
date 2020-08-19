@@ -328,16 +328,13 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         }
 
         case TimelineModel.TimelineModel.TrackType.Timings: {
-          // TODO(mmocny): Problem 1: Why aren't performance.marks in this `track`?
           const style = track.asyncEvents.length > 0 ? this._collapsibleTimingsHeader : this._timingsHeader;
           const group = this._appendHeader(ls`Timings`, style, true /* selectable */);
           group._track = track;
           this._appendPageMetrics();
-
+          this._appendSyncEvents(track, track.events, null, null, eventEntryType, true /* selectable */);
+          this._appendAsyncEventsGroup(track, null, track.asyncEvents, null, eventEntryType, true /* selectable */);
           
-          this._appendAsyncEventsGroup(track, null, track.asyncEvents, style, eventEntryType, true /* selectable */);
-          // TODO(mmocny): This is new
-          this._appendSyncEvents(track, track.events, null, style, eventEntryType, true /* selectable */);
           break;
         }
 
@@ -543,9 +540,9 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
           continue;
         }
         console.log('YAY',  title, e, track, events, 'entryType', entryType);
-
-        //TODO(mmocny): Add endTime to marks!
-
+        if (e.phase === 'R') { // TODO(mmocny): Why isn't R defined in TracingModel.Phase?
+          e.setEndTime(e.startTime);
+        }
       }
 
       if (this._performanceModel && this._performanceModel.timelineModel().isLayoutShiftEvent(e)) {
@@ -595,7 +592,7 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         }
         e._blackboxRoot = true;
       }
-      if (!group) {
+      if (!group && title) {
         group = this._appendHeader(title, style, selectable);
         if (selectable) {
           group._track = track;
@@ -647,14 +644,14 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
 
   /**
    * @param {?TimelineModel.TimelineModel.Track} track
-   * @param {?string} header
+   * @param {?string} title
    * @param {!Array<!SDK.TracingModel.AsyncEvent>} events
    * @param {!PerfUI.FlameChart.GroupStyle} style
    * @param {!EntryType} entryType
    * @param {boolean} selectable
    * @return {?PerfUI.FlameChart.Group}
    */
-  _appendAsyncEventsGroup(track, header, events, style, entryType, selectable) {
+  _appendAsyncEventsGroup(track, title, events, style, entryType, selectable) {
     if (!events.length) {
       return null;
     }
@@ -665,8 +662,8 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
       if (!this._performanceModel.isVisible(asyncEvent)) {
         continue;
       }
-      if (!group && header) {
-        group = this._appendHeader(header, style, selectable);
+      if (!group && title) {
+        group = this._appendHeader(title, style, selectable);
         if (selectable) {
           group._track = track;
         }
