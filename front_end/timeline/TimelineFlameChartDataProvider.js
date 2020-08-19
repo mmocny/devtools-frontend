@@ -334,7 +334,6 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
           this._appendPageMetrics();
           this._appendSyncEvents(track, track.events, null, null, eventEntryType, true /* selectable */);
           this._appendAsyncEventsGroup(track, null, track.asyncEvents, null, eventEntryType, true /* selectable */);
-          
           break;
         }
 
@@ -495,7 +494,6 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         }
       }
 
-      // TODO(mmocny): This is new.
       if (this._performanceModel && this._performanceModel.timelineModel().isUserTimingEvent(e)) {
         // TODO(mmocny): This filtration should happen beforehand, at the moment it gets extracted?
         let ResourceTimingNames = [
@@ -539,8 +537,8 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
         if (IgnoreNames.includes(e.name)) {
           continue;
         }
-        console.log('YAY',  title, e, track, events, 'entryType', entryType);
-        if (e.phase === 'R') { // TODO(mmocny): Why isn't R defined in TracingModel.Phase?
+        // TODO(mmocny): Why isn't R defined in TracingModel.Phase?
+        if (e.phase === 'R') {
           e.setEndTime(e.startTime);
         }
       }

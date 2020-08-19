@@ -250,7 +250,6 @@ export class TimelineModelImpl {
 
     // Remove PerfMark events from the main thread list of events because they are
     // represented in the Timings track. This is done prior to the main thread being processed for its own events.
-    // TODO(mmocny): this is new. extracting sync and async events.  How to ignore async?
     const perfMarkEvents =
         tracingModel.extractEventsFromThreadByCategory('Renderer', 'CrRendererMain', TimelineModelImpl.Category.UserTiming);
 
@@ -272,7 +271,6 @@ export class TimelineModelImpl {
     this._processAsyncBrowserEvents(tracingModel);
     this._buildGPUEvents(tracingModel);
     this._buildLoadingEvents(tracingModel, layoutShiftEvents);
-    // TODO(mmocny): this is new
     this._buildTimingEvents(tracingModel, perfMarkEvents);
     this._resetProcessingState();
   }
@@ -547,7 +545,6 @@ export class TimelineModelImpl {
    * @param {!Array<!SDK.TracingModel.Event>} events
    */
   _buildTimingEvents(tracingModel, events) {
-    console.log('TimelineModel._buildTimingEvents', tracingModel, events);
     const thread = tracingModel.threadByName('Renderer', 'CrRendererMain');
     if (!thread) {
       return;
@@ -556,19 +553,9 @@ export class TimelineModelImpl {
     track.thread = thread;
     track.events = events;
 
-    /*
-    const category = 'timings';
-    // Even though the event comes from 'loading', in order to color it differently we
-    // rename its category.
-    for (const trackEvent of track.events) {
-      trackEvent.categoriesString = category;
-      if (trackEvent.name === RecordType.UserTiming) {
-        const eventData = trackEvent.args['data'] || trackEvent.args['beginData'] || {};
-        //const timelineData = TimelineData.forEvent(trackEvent);
-        //timelineData.backendNodeId = eventData['impacted_nodes'][0]['node_id'];
-      }
-    }
-    */
+    //TODO(mmocny): _buildLoadingEvents above is actually about turning loading events into experience events.
+    // The last thing it does it update the categoriesString, and then does layoutshift specific things.
+    // Since user timings use a unique categoryString already, do we need to do anything here?
   }
 
   _resetProcessingState() {

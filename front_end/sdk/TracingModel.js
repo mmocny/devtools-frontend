@@ -383,7 +383,6 @@ export class TracingModel {
    * @return {!Array<!Event>}
    */
   extractEventsFromThreadByCategory(processName, threadName, eventCategory) {
-    //TODO(mmocny): this is new, very similar to above byName
     const thread = this.threadByName(processName, threadName);
     if (!thread) {
       return [];
@@ -1166,7 +1165,6 @@ export class Thread extends NamedObject {
    * @param {string} category
    */
   removeEventsByCategory(category) {
-    // TODO(mmocny): This is new, very similar to abobe byName
     /**
      * @type {!Array<!Event>}
      */
