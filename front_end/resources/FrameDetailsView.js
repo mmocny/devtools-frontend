@@ -35,6 +35,9 @@ export class FrameDetailsView extends UI.ThrottledWidget.ThrottledWidget {
       }
     });
     this._adStatus = this._generalSection.appendField(ls`Ad Status`);
+    this._isolationSection = this._reportView.appendSection(ls`Security & Isolation`);
+    this._coepPolicy = this._isolationSection.appendField(ls`Cross-Origin Embedder Policy`);
+    this._coopPolicy = this._isolationSection.appendField(ls`Cross-Origin Opener Policy`);
     this.update();
   }
 
@@ -52,20 +55,44 @@ export class FrameDetailsView extends UI.ThrottledWidget.ThrottledWidget {
         Common.Revealer.reveal(sourceCode);
       });
     }
-    const documentResource = this._frame.resourceForURL(this._frame.url);
-    if (documentResource && documentResource.request) {
-      const revealRequest = this._urlFieldValue.createChild('span', 'report-field-value-part devtools-link');
-      revealRequest.textContent = ls`View Request`;
-      revealRequest.addEventListener('click', () => {
-        Common.Revealer.reveal(documentResource.request);
-      });
-    }
+    FrameDetailsView.maybeAppendLinkToRequest(this._urlFieldValue, this._frame.resourceForURL(this._frame.url));
     this._maybeAppendLinkForUnreachableUrl();
-    this._originFieldValue.textContent = this._frame.securityOrigin;
+    if (this._frame.securityOrigin && this._frame.securityOrigin !== '://') {
+      this._originFieldValue.textContent = this._frame.securityOrigin;
+      this._generalSection.setFieldVisible(ls`Origin`, true);
+    } else {
+      this._generalSection.setFieldVisible(ls`Origin`, false);
+    }
     this._ownerDomNode = await this._frame.getOwnerDOMNodeOrDocument();
     this._updateAdStatus();
     if (this._ownerDomNode) {
       this._ownerElementFieldValue.textContent = `<${this._ownerDomNode.nodeName().toLocaleLowerCase()}>`;
+    }
+    await this._updateCoopCoepStatus();
+  }
+
+  async _updateCoopCoepStatus() {
+    const info = await this._frame.resourceTreeModel()
+                     .target()
+                     .model(SDK.NetworkManager.NetworkManager)
+                     .getSecurityIsolationStatus(this._frame.id);
+    this._coepPolicy.textContent = info.coep.value;
+    this._coopPolicy.textContent = info.coop.value;
+  }
+
+  /**
+   * @param {!Element} element
+   * @param {?SDK.Resource.Resource} resource
+   */
+  static maybeAppendLinkToRequest(element, resource) {
+    if (resource && resource.request) {
+      const request = resource.request;
+      const revealRequest = element.createChild('span', 'report-field-value-part');
+      revealRequest.textContent = ls`View Request`;
+      revealRequest.classList.add('devtools-link');
+      revealRequest.addEventListener('click', () => {
+        Network.NetworkPanel.NetworkPanel.selectAndShowRequest(request, Network.NetworkItemView.Tabs.Headers);
+      });
     }
   }
 

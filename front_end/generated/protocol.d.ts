@@ -7125,6 +7125,31 @@ declare namespace Protocol {
       errors?: SignedExchangeError[];
     }
 
+    export enum CrossOriginOpenerPolicyValue {
+      SameOrigin = 'SameOrigin',
+      SameOriginAllowPopups = 'SameOriginAllowPopups',
+      UnsafeNone = 'UnsafeNone',
+      SameOriginPlusCoep = 'SameOriginPlusCoep',
+    }
+
+    export interface CrossOriginOpenerPolicyStatus {
+      value: CrossOriginOpenerPolicyValue;
+    }
+
+    export enum CrossOriginEmbedderPolicyValue {
+      None = 'None',
+      RequireCorp = 'RequireCorp',
+    }
+
+    export interface CrossOriginEmbedderPolicyStatus {
+      value: CrossOriginEmbedderPolicyValue;
+    }
+
+    export interface SecurityIsolationStatus {
+      coop: CrossOriginOpenerPolicyStatus;
+      coep: CrossOriginEmbedderPolicyStatus;
+    }
+
     export interface CanClearBrowserCacheResponse extends ProtocolResponseWithError {
       /**
        * True if browser cache can be cleared.
@@ -7489,6 +7514,17 @@ declare namespace Protocol {
        * To be sent in Sec-CH-UA-* headers and returned in navigator.userAgentData
        */
       userAgentMetadata?: Emulation.UserAgentMetadata;
+    }
+
+    export interface GetSecurityIsolationStatusRequest {
+      /**
+       * If no frameId is provided, the status of the target is provided.
+       */
+      frameId?: Page.FrameId;
+    }
+
+    export interface GetSecurityIsolationStatusResponse extends ProtocolResponseWithError {
+      status: SecurityIsolationStatus;
     }
 
     /**
@@ -8459,6 +8495,25 @@ declare namespace Protocol {
     }
 
     /**
+     * Indicates whether the frame is a secure context and why it is the case.
+     */
+    export enum SecureContextType {
+      Secure = 'Secure',
+      SecureLocalhost = 'SecureLocalhost',
+      InsecureScheme = 'InsecureScheme',
+      InsecureAncestor = 'InsecureAncestor',
+    }
+
+    /**
+     * Indicates whether the frame is cross-origin isolated and why it is the case.
+     */
+    export enum CrossOriginIsolatedContextType {
+      Isolated = 'Isolated',
+      NotIsolated = 'NotIsolated',
+      NotIsolatedFeatureDisabled = 'NotIsolatedFeatureDisabled',
+    }
+
+    /**
      * Information about the Frame on the page.
      */
     export interface Frame {
@@ -8509,6 +8564,14 @@ declare namespace Protocol {
        * Indicates whether this frame was tagged as an ad.
        */
       adFrameType?: AdFrameType;
+      /**
+       * Indicates whether the main document is a secure context and explains why that is the case.
+       */
+      secureContextType: SecureContextType;
+      /**
+       * Indicates whether this is a cross origin isolated context.
+       */
+      crossOriginIsolatedContextType: CrossOriginIsolatedContextType;
     }
 
     /**

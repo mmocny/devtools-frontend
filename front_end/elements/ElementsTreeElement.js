@@ -72,6 +72,7 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
     if (this._node.nodeType() === Node.ELEMENT_NODE && !isClosingTag) {
       this._canAddAttributes = true;
     }
+    /** @type {?string} */
     this._searchQuery = null;
     this._expandedChildrenLimit = InitialChildrenLimit;
     this._decorationsThrottler = new Common.Throttler.Throttler(100);
@@ -80,12 +81,18 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
       this._adornerContainer = this.listItemElement.createChild('div', 'adorner-container hidden');
       /** @type {!Array<!Adorner>} */
       this._adorners = [];
+      /** @type {!Array<!Adorner>} */
+      this._styleAdorners = [];
       this._adornersThrottler = new Common.Throttler.Throttler(100);
 
       if (Root.Runtime.experiments.isEnabled('cssGridFeatures')) {
         // This flag check is put here because currently the only style adorner is Grid;
         // we will refactor this logic when we have more style-related adorners
-        this._updateStyleAdorners();
+        this.updateStyleAdorners();
+      }
+      if (node.isAdFrameNode()) {
+        const adorner = this.adornText('Ad', AdornerCategories.Security);
+        adorner.title = ls`This frame was identified as an ad frame`;
       }
     }
 
@@ -634,7 +641,8 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
     const deviceModeWrapperAction = new Emulation.DeviceModeWrapper.ActionDelegate();
     contextMenu.viewSection().appendItem(
         ls`Capture node screenshot`,
-        deviceModeWrapperAction.handleAction.bind(null, self.UI.context, 'emulation.capture-node-screenshot'));
+        deviceModeWrapperAction.handleAction.bind(
+            null, UI.Context.Context.instance(), 'emulation.capture-node-screenshot'));
   }
 
   _startEditing() {
@@ -1545,6 +1553,8 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
     const tagNameElement =
         tagElement.createChild('span', isClosingTag ? 'webkit-html-close-tag-name' : 'webkit-html-tag-name');
     tagNameElement.textContent = (isClosingTag ? '/' : '') + tagName;
+    // Force screen readers to consider the tagname as one label, this avoids announcing <div id> as one word "divid".
+    UI.ARIAUtils.setAccessibleName(tagNameElement, tagName);
     if (!isClosingTag) {
       if (node.hasAttributes()) {
         const attributes = node.attributes();
@@ -1866,7 +1876,7 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
 
   _editAsHTML() {
     const promise = Common.Revealer.reveal(this.node());
-    promise.then(() => self.UI.actionRegistry.action('elements.edit-as-html').execute());
+    promise.then(() => UI.ActionRegistry.ActionRegistry.instance().action('elements.edit-as-html').execute());
   }
 
   // TODO: add unit tests for adorner-related methods after component and TypeScript works are done
@@ -1938,12 +1948,21 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
     return Promise.resolve();
   }
 
-  async _updateStyleAdorners() {
+  async updateStyleAdorners() {
+    if (this._isClosingTag) {
+      return;
+    }
+
     const node = this.node();
     const nodeId = node.id;
     if (node.nodeType() === Node.COMMENT_NODE || nodeId === undefined) {
       return;
     }
+
+    for (const styleAdorner of this._styleAdorners) {
+      this.removeAdorner(styleAdorner);
+    }
+    this._styleAdorners = [];
 
     const styles = await node.domModel().cssModel().computedStylePromise(nodeId);
     if (!styles) {
@@ -1967,6 +1986,8 @@ export class ElementsTreeElement extends UI.TreeOutline.TreeElement {
         ariaLabelDefault: ls`Enable grid mode`,
         ariaLabelActive: ls`Disable grid mode`,
       });
+
+      this._styleAdorners.push(gridAdorner);
 
       node.domModel().overlayModel().addEventListener(SDK.OverlayModel.Events.PersistentGridOverlayCleared, () => {
         gridAdorner.toggle(false /* force inactive state */);

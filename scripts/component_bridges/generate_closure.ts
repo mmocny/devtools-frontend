@@ -177,6 +177,15 @@ export const generateClosureClass = (state: WalkerState): string[] => {
       jsDocForFunc.push(parsedParam);
     });
 
+    if (method.type) {
+      const parsedReturnType = typeNodeToJSDocClosureType(method.type, {
+        nodeIsOptional: false,
+        paramName: 'return type',
+        docType: 'return',
+      });
+      jsDocForFunc.push(parsedReturnType);
+    }
+
     jsDocForFunc.push('*/');
     jsDocForFunc = jsDocForFunc.map(line => indent(line, 2));
 
@@ -260,7 +269,6 @@ const generateInterfaceMembers =
               if (!member.type) {
                 throw new Error(`Interface member ${ts.SyntaxKind[member.kind]} did not have a type key, aborting.`);
               }
-
 
               const keyIdentifer = member.name as ts.Identifier;
               const memberIsOptional = !!member.questionToken;
@@ -374,6 +382,25 @@ const checkUnionTypeValid = (node: ts.UnionTypeNode, typeName: string) => {
   });
 };
 
+const checkInterfaceMembersValid =
+    (state: WalkerState, members: ts.NodeArray<ts.TypeElement|ts.TypeNode>|Array<ts.TypeElement|ts.TypeNode>,
+     interfaceName: string) => {
+      members.forEach(member => {
+        if (ts.isPropertySignature(member)) {
+          if (!member.type) {
+            throw new Error(`Interface member ${ts.SyntaxKind[member.kind]} did not have a type key, aborting.`);
+          }
+          if (ts.isTypeReferenceNode(member.type) && ts.isQualifiedName(member.type.typeName)) {
+            const leftType = member.type.typeName.left as ts.Identifier;
+            const leftNode = findNodeForTypeReferenceName(state, leftType.escapedText.toString());
+            if (!leftNode || !state.foundEnums.has(leftNode as ts.EnumDeclaration)) {
+              throw new Error(`Invalid member ${ts.SyntaxKind[member.kind]} of interface ${interfaceName} found.`);
+            }
+          }
+        }
+      });
+    };
+
 const generateClosureForInterface =
     (state: WalkerState, interfaceName: string): string[] => {
       const typeReferenceNode = findNodeForTypeReferenceName(state, interfaceName);
@@ -391,6 +418,7 @@ const generateClosureForInterface =
       if (ts.isInterfaceDeclaration(typeReferenceNode)) {
         interfaceBits.push('* @typedef {{');
         const allMembersOfInterface = gatherMembersForInterface(state, typeReferenceNode);
+        checkInterfaceMembersValid(state, allMembersOfInterface, interfaceName);
         interfaceBits.push(...generateInterfaceMembers(allMembersOfInterface, interfaceName));
         interfaceBits.push('* }}');
         interfaceBits.push('*/');
@@ -403,6 +431,7 @@ const generateClosureForInterface =
       } else if (ts.isTypeAliasDeclaration(typeReferenceNode) && ts.isTypeLiteralNode(typeReferenceNode.type)) {
         // e.g. type X = { name: string; }
         interfaceBits.push('* @typedef {{');
+        checkInterfaceMembersValid(state, typeReferenceNode.type.members, interfaceName);
         interfaceBits.push(...generateInterfaceMembers(typeReferenceNode.type.members, interfaceName));
         interfaceBits.push('* }}');
         interfaceBits.push('*/');
@@ -452,6 +481,7 @@ const generateClosureForInterface =
           membersToOutput.set(keyIdentifer, member);
         });
         const finalMembers = ts.createNodeArray([...membersToOutput.values()]);
+        checkInterfaceMembersValid(state, finalMembers, interfaceName);
         interfaceBits.push(...generateInterfaceMembers(finalMembers, interfaceName));
 
         interfaceBits.push('* }}');

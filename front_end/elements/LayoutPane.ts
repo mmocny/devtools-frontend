@@ -6,11 +6,12 @@ import * as Common from '../common/common.js';
 import * as ComponentHelpers from '../component_helpers/component_helpers.js';
 import * as LitHtml from '../third_party/lit-html/lit-html.js';
 
+import {BooleanSetting, EnumSetting, LayoutElement, Setting, SettingType} from './LayoutPaneUtils.js';
+
 const {render, html} = LitHtml;
 const ls = Common.ls;
 const getStyleSheets = ComponentHelpers.GetStylesheet.getStyleSheets;
-
-import {BooleanSetting, Element, EnumSetting, Setting, SettingType} from './LayoutPaneUtils.js';
+const showElementButtonTitle = ls`Show element in the Elements panel`;
 
 export class SettingChangedEvent extends Event {
   data: {setting: string, value: string|boolean};
@@ -30,6 +31,15 @@ export class OverlayChangedEvent extends Event {
   }
 }
 
+export class ElementClickedEvent extends Event {
+  data: {id: number};
+
+  constructor(id: number) {
+    super('element-clicked', {});
+    this.data = {id};
+  }
+}
+
 interface HTMLInputElementEvent extends Event {
   target: HTMLInputElement;
 }
@@ -45,7 +55,7 @@ function isBooleanSetting(setting: Setting): setting is BooleanSetting {
 export class LayoutPane extends HTMLElement {
   private readonly shadow = this.attachShadow({mode: 'open'});
   private settings: Readonly<Setting[]> = [];
-  private gridElements: Readonly<Element[]> = [];
+  private gridElements: Readonly<LayoutElement[]> = [];
 
   constructor() {
     super();
@@ -55,7 +65,7 @@ export class LayoutPane extends HTMLElement {
     ];
   }
 
-  set data(data: {settings: Setting[], gridElements: Element[]}) {
+  set data(data: {settings: Setting[], gridElements: LayoutElement[]}) {
     this.settings = data.settings;
     this.gridElements = data.gridElements;
     this.render();
@@ -102,9 +112,11 @@ export class LayoutPane extends HTMLElement {
           display: flex;
           flex-direction: row;
           align-items: start;
+        }
+        .checkbox-settings .checkbox-label {
           margin-bottom: 8px;
         }
-        .checkbox-label:last-child {
+        .checkbox-settings .checkbox-label:last-child {
           margin-bottom: 0;
         }
         .checkbox-label input {
@@ -127,6 +139,30 @@ export class LayoutPane extends HTMLElement {
         .elements {
           margin-top: 12px;
           color: var(--dom-tag-name-color);
+        }
+        .element {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+        }
+        .element {
+          margin-bottom: 8px;
+        }
+        .element:last-child {
+          margin-bottom: 0;
+        }
+        .show-element {
+          margin: 0 0 0 8px;
+          padding: 0;
+          background: none;
+          border: none;
+          background-image: url(Images/ic_show_node_16x16.svg);
+          background-repeat: no-repeat;
+          width: 16px;
+          height: 16px;
+          display: block;
+          background-size: cover;
+          cursor: pointer;
         }
       </style>
       <details open>
@@ -174,21 +210,31 @@ export class LayoutPane extends HTMLElement {
     this.dispatchEvent(new SettingChangedEvent(setting.name, event.target.value));
   }
 
-  private onElementToggle(element: Element, event: HTMLInputElementEvent) {
+  private onElementToggle(element: LayoutElement, event: HTMLInputElementEvent) {
     event.preventDefault();
     this.dispatchEvent(new OverlayChangedEvent(element.id, event.target.checked));
   }
 
-  private renderElement(element: Element) {
-    const name = this.buildElementName(element);
-    const onElementToggle = this.onElementToggle.bind(this, element);
-    return html`<label data-element="true" class="checkbox-label" title=${name}>
-      <input data-input="true" type="checkbox" .checked=${element.enabled} @change=${onElementToggle} />
-      <span data-label="true">${name}</span>
-    </label>`;
+  private onElementClick(element: LayoutElement, event: HTMLInputElementEvent) {
+    event.preventDefault();
+    this.dispatchEvent(new ElementClickedEvent(element.id));
   }
 
-  private buildElementName(element: Element) {
+  private renderElement(element: LayoutElement) {
+    const name = this.buildElementName(element);
+    const onElementToggle = this.onElementToggle.bind(this, element);
+    const onElementClick = this.onElementClick.bind(this, element);
+    return html`<div class="element">
+      <label data-element="true" class="checkbox-label" title=${name}>
+        <input data-input="true" type="checkbox" .checked=${element.enabled} @change=${onElementToggle} />
+        <span data-label="true">${name}</span>
+      </label>
+      <button @click=${onElementClick} title=${showElementButtonTitle} class="show-element">
+      </button>
+  </div>`;
+  }
+
+  private buildElementName(element: LayoutElement) {
     const parts = [element.name];
     if (element.domId) {
       parts.push(`#${CSS.escape(element.domId)}`);

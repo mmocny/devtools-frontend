@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {LayoutPane, OverlayChangedEvent, SettingChangedEvent} from '../../../../front_end/elements/LayoutPane.js';
+import {ElementClickedEvent, LayoutPane, OverlayChangedEvent, SettingChangedEvent} from '../../../../front_end/elements/LayoutPane.js';
 import {SettingType} from '../../../../front_end/elements/LayoutPaneUtils.js';
 import {assertShadowRoot, renderElementIntoDOM} from '../helpers/DOMHelpers.js';
 
@@ -127,6 +127,11 @@ describe('LayoutPane', () => {
           domClasses: ['class1', 'class2'],
           enabled: false,
         },
+        {
+          id: 3,
+          name: 'div',
+          enabled: false,
+        },
       ],
       settings: [],
     };
@@ -136,6 +141,7 @@ describe('LayoutPane', () => {
     assert.deepEqual(queryLabels(component, '[data-element]'), [
       {label: 'div#elementId', input: 'INPUT'},
       {label: 'span.class1.class2', input: 'INPUT'},
+      {label: 'div', input: 'INPUT'},
     ]);
   });
 
@@ -168,5 +174,36 @@ describe('LayoutPane', () => {
 
     const event = await eventPromise;
     assert.deepEqual(event.data, {id: 1, value: true});
+  });
+
+  it('send an event when an element’s Show element button is pressed', async () => {
+    const component = new LayoutPane();
+    renderElementIntoDOM(component);
+
+    component.data = {
+      gridElements: [
+        {
+          id: 1,
+          name: 'div',
+          enabled: false,
+        },
+      ],
+      settings: [],
+    };
+
+    assertShadowRoot(component.shadowRoot);
+
+    const button = component.shadowRoot.querySelector('button.show-element') as HTMLInputElement;
+
+    const eventPromise = new Promise<ElementClickedEvent>(resolve => {
+      component.addEventListener('element-clicked', (event: Event) => {
+        resolve(event as ElementClickedEvent);
+      }, false);
+    });
+
+    button.click();
+
+    const event = await eventPromise;
+    assert.deepEqual(event.data, {id: 1});
   });
 });

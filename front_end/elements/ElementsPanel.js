@@ -129,6 +129,8 @@ export class ElementsPanel extends UI.Panel.Panel {
     this._treeOutlines = new Set();
     /** @type {!Map<!ElementsTreeOutline, !Element>} */
     this._treeOutlineHeaders = new Map();
+    /** @type {!Map<!SDK.CSSModel.CSSModel, !SDK.CSSModel.CSSPropertyTracker>} */
+    this._gridStyleTrackerByCSSModel = new Map();
     SDK.SDKModel.TargetManager.instance().observeModels(SDK.DOMModel.DOMModel, this);
     SDK.SDKModel.TargetManager.instance().addEventListener(
         SDK.SDKModel.Events.NameChanged,
@@ -205,6 +207,8 @@ export class ElementsPanel extends UI.Panel.Panel {
     }
     treeOutline.wireToDOMModel(domModel);
 
+    this._setupStyleTracking(domModel.cssModel());
+
     // Perform attach if necessary.
     if (this.isShowing()) {
       this.wasShown();
@@ -228,6 +232,8 @@ export class ElementsPanel extends UI.Panel.Panel {
     }
     this._treeOutlineHeaders.delete(treeOutline);
     treeOutline.element.remove();
+
+    this._removeStyleTracking(domModel.cssModel());
   }
 
   /**
@@ -286,7 +292,7 @@ export class ElementsPanel extends UI.Panel.Panel {
    * @override
    */
   wasShown() {
-    self.UI.context.setFlavor(ElementsPanel, this);
+    UI.Context.Context.instance().setFlavor(ElementsPanel, this);
 
     for (const treeOutline of this._treeOutlines) {
       // Attach heavy component lazily
@@ -334,7 +340,7 @@ export class ElementsPanel extends UI.Panel.Panel {
       }
     }
     super.willHide();
-    self.UI.context.setFlavor(ElementsPanel, null);
+    UI.Context.Context.instance().setFlavor(ElementsPanel, null);
   }
 
   /**
@@ -378,7 +384,7 @@ export class ElementsPanel extends UI.Panel.Panel {
       this._breadcrumbs.data = {crumbs: [], selectedNode: null};
     }
 
-    self.UI.context.setFlavor(SDK.DOMModel.DOMNode, selectedNode);
+    UI.Context.Context.instance().setFlavor(SDK.DOMModel.DOMNode, selectedNode);
 
     if (!selectedNode) {
       return;
@@ -393,7 +399,7 @@ export class ElementsPanel extends UI.Panel.Panel {
     const nodeFrameId = selectedNode.frameId();
     for (const context of executionContexts) {
       if (context.frameId === nodeFrameId) {
-        self.UI.context.setFlavor(SDK.RuntimeModel.ExecutionContext, context);
+        UI.Context.Context.instance().setFlavor(SDK.RuntimeModel.ExecutionContext, context);
         break;
       }
     }
@@ -405,6 +411,8 @@ export class ElementsPanel extends UI.Panel.Panel {
   _documentUpdatedEvent(event) {
     const domModel = /** @type {!SDK.DOMModel.DOMModel} */ (event.data);
     this._documentUpdated(domModel);
+    this._removeStyleTracking(domModel.cssModel());
+    this._setupStyleTracking(domModel.cssModel());
   }
 
   /**
@@ -980,6 +988,53 @@ export class ElementsPanel extends UI.Panel.Panel {
       this.sidebarPaneView.appendView(pane);
     }
   }
+
+  /**
+   * @param {!SDK.CSSModel.CSSModel} cssModel
+   */
+  _setupStyleTracking(cssModel) {
+    if (Root.Runtime.experiments.isEnabled('cssGridFeatures')) {
+      // Style tracking is conditional on enabling experimental Grid features
+      // because it's the only use case for now.
+      const gridStyleTracker = cssModel.createCSSPropertyTracker(TrackedCSSGridProperties);
+      gridStyleTracker.start();
+      this._gridStyleTrackerByCSSModel.set(cssModel, gridStyleTracker);
+      gridStyleTracker.addEventListener(
+          SDK.CSSModel.CSSPropertyTrackerEvents.TrackedCSSPropertiesUpdated, this._trackedCSSPropertiesUpdated, this);
+    }
+  }
+
+  /**
+   * @param {!SDK.CSSModel.CSSModel} cssModel
+   */
+  _removeStyleTracking(cssModel) {
+    const gridStyleTracker = this._gridStyleTrackerByCSSModel.get(cssModel);
+    if (!gridStyleTracker) {
+      return;
+    }
+
+    gridStyleTracker.stop();
+    this._gridStyleTrackerByCSSModel.delete(cssModel);
+    gridStyleTracker.removeEventListener(
+        SDK.CSSModel.CSSPropertyTrackerEvents.TrackedCSSPropertiesUpdated, this._trackedCSSPropertiesUpdated, this);
+  }
+
+  /**
+   * @param {!Common.EventTarget.EventTargetEvent} event
+   */
+  _trackedCSSPropertiesUpdated(event) {
+    const domNodes = /** @type {!Array<?SDK.DOMModel.DOMNode>} */ (event.data.domNodes);
+
+    for (const domNode of domNodes) {
+      if (!domNode) {
+        continue;
+      }
+      const treeElement = this._treeElementForNode(domNode);
+      if (treeElement) {
+        treeElement.updateStyleAdorners();
+      }
+    }
+  }
 }
 
 ElementsPanel._firstInspectElementCompletedForTest = function() {};
@@ -989,6 +1044,17 @@ export const _splitMode = {
   Vertical: Symbol('Vertical'),
   Horizontal: Symbol('Horizontal'),
 };
+
+const TrackedCSSGridProperties = [
+  {
+    name: 'display',
+    value: 'grid',
+  },
+  {
+    name: 'display',
+    value: 'inline-grid',
+  },
+];
 
 /**
  * @implements {UI.ContextMenu.Provider}
@@ -1145,7 +1211,7 @@ export class ElementsActionDelegate {
    * @return {boolean}
    */
   handleAction(context, actionId) {
-    const node = self.UI.context.flavor(SDK.DOMModel.DOMNode);
+    const node = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
     if (!node) {
       return true;
     }

@@ -9,20 +9,24 @@ import * as Common from '../common/common.js';
 import * as SDK from '../sdk/sdk.js';
 import * as UI from '../ui/ui.js';
 
-import {createLayoutPane, Element} from './LayoutPane_bridge.js';  // eslint-disable-line no-unused-vars
+import {ElementsPanel} from './ElementsPanel.js';
+import {createLayoutPane, LayoutElement} from './LayoutPane_bridge.js';  // eslint-disable-line no-unused-vars
 
 /**
  * @param {!Array<!SDK.DOMModel.DOMNode>} nodes
- * @return {!Array<!Element>}
+ * @return {!Array<!LayoutElement>}
  */
 const gridNodesToElements = nodes => {
-  return nodes.map(node => ({
-                     id: node.id,
-                     name: node.localName(),
-                     domId: node.getAttribute('id'),
-                     domClasses: (node.getAttribute('class') || '').split(/\s+/),
-                     enabled: node.domModel().overlayModel().isHighlightedGridInPersistentOverlay(node.id)
-                   }));
+  return nodes.map(node => {
+    const className = node.getAttribute('class');
+    return {
+      id: node.id,
+      name: node.localName(),
+      domId: node.getAttribute('id'),
+      domClasses: className ? className.split(/\s+/) : null,
+      enabled: node.domModel().overlayModel().isHighlightedGridInPersistentOverlay(node.id)
+    };
+  });
 };
 
 /**
@@ -33,12 +37,15 @@ export class LayoutSidebarPane extends UI.ThrottledWidget.ThrottledWidget {
     super(true /* isWebComponent */);
     this._layoutPane = createLayoutPane();
     this.contentElement.appendChild(this._layoutPane);
-    this._settings = [
-      'showGridBorder', 'showGridLines', 'showGridLineNumbers', 'showGridGaps', 'showGridAreas', 'showGridTrackSizes'
-    ];
-    this._node = self.UI.context.flavor(SDK.DOMModel.DOMNode);
+    this._settings = ['showGridLines', 'showGridLineNumbers', 'showGridGaps', 'showGridAreas', 'showGridTrackSizes'];
     this._boundOnSettingChanged = this.onSettingChanged.bind(this);
     this._boundOnOverlayChanged = this.onOverlayChanged.bind(this);
+    this._boundOnElementClicked = this.onElementClicked.bind(this);
+    this._pullNode();
+  }
+
+  _pullNode() {
+    this._node = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
   }
 
   async _fetchGridNodes() {
@@ -77,6 +84,7 @@ export class LayoutSidebarPane extends UI.ThrottledWidget.ThrottledWidget {
    * @return {!Promise<void>}
    */
   async doUpdate() {
+    this._pullNode();
     this._layoutPane.data = {
       gridElements: gridNodesToElements(await this._fetchGridNodes()),
       settings: this._mapSettings(),
@@ -103,6 +111,14 @@ export class LayoutSidebarPane extends UI.ThrottledWidget.ThrottledWidget {
   }
 
   /**
+   * @param {*} event
+   */
+  onElementClicked(event) {
+    const node = this._node.domModel().nodeForId(event.data.id);
+    ElementsPanel.instance().revealAndSelectNode(node, true, true);
+  }
+
+  /**
    * @override
    */
   wasShown() {
@@ -111,9 +127,11 @@ export class LayoutSidebarPane extends UI.ThrottledWidget.ThrottledWidget {
     }
     this._layoutPane.addEventListener('setting-changed', this._boundOnSettingChanged);
     this._layoutPane.addEventListener('overlay-changed', this._boundOnOverlayChanged);
+    this._layoutPane.addEventListener('element-clicked', this._boundOnElementClicked);
     const overlayModel = this._node.domModel().overlayModel();
     overlayModel.addEventListener(SDK.OverlayModel.Events.PersistentGridOverlayCleared, this.update, this);
     overlayModel.addEventListener(SDK.OverlayModel.Events.PersistentGridOverlayStateChanged, this.update, this);
+    UI.Context.Context.instance().addFlavorChangeListener(SDK.DOMModel.DOMNode, this.update, this);
     this.update();
   }
 
@@ -126,8 +144,10 @@ export class LayoutSidebarPane extends UI.ThrottledWidget.ThrottledWidget {
     }
     this._layoutPane.removeEventListener('setting-changed', this._boundOnSettingChanged);
     this._layoutPane.removeEventListener('overlay-changed', this._boundOnOverlayChanged);
+    this._layoutPane.removeEventListener('element-clicked', this._boundOnElementClicked);
     const overlayModel = this._node.domModel().overlayModel();
     overlayModel.removeEventListener(SDK.OverlayModel.Events.PersistentGridOverlayCleared, this.update, this);
     overlayModel.removeEventListener(SDK.OverlayModel.Events.PersistentGridOverlayStateChanged, this.update, this);
+    UI.Context.Context.instance().removeFlavorChangeListener(SDK.DOMModel.DOMNode, this.update, this);
   }
 }

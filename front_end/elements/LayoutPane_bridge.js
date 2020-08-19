@@ -9,11 +9,6 @@
 *  npm run generate-bridge-file front_end/elements/LayoutPane.ts
 */
 
-/**
- * MANUALLY_EDITED_BRIDGE=requires currently in-flight bridge fix to enable support for TS enums.
- * CL: https://crrev.com/c/2354094
- */
-
 import './LayoutPane.js';
 /**
 * @typedef {EnumSetting|BooleanSetting}
@@ -30,7 +25,7 @@ export let Setting;
 * }}
 */
 // @ts-ignore we export this for Closure not TS
-export let Element;
+export let LayoutElement;
 /**
 * @typedef {{
 * name:string,
@@ -57,7 +52,7 @@ export let BooleanSetting;
 * @enum {string}
 */
 // @ts-ignore we export this for Closure not TS
-export const SettingType = {
+export let SettingType = {
   BOOLEAN: 'boolean',
   ENUM: 'enum',
 };
@@ -80,7 +75,7 @@ export let BooleanSettingOption;
 // eslint-disable-next-line no-unused-vars
 export class LayoutPaneClosureInterface extends HTMLElement {
   /**
-  * @param {{settings: !Array.<!Setting>, gridElements: !Array.<!Element>}} data
+  * @param {{settings: !Array.<!Setting>, gridElements: !Array.<!LayoutElement>}} data
   */
   set data(data) {
   }
